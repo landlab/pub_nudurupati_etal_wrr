@@ -1,0 +1,211 @@
+
+# Authors: Sai Nudurupati & Erkan Istanbulluoglu, 21May15
+# Edited: 15Jul16 - to conform to Landlab version 1.
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from landlab.plot import imshow_grid
+from landlab.components import (PrecipitationDistribution, Radiation,
+                                PotentialEvapotranspiration, SoilMoisture,
+                                Vegetation, VegCA)
+from funcs_for_including_runon_in_soil_moisture import (
+    get_ordered_cells_for_soil_moisture)
+
+GRASS = 0
+SHRUB = 1
+TREE = 2
+BARE = 3
+SHRUBSEEDLING = 4
+TREESEEDLING = 5
+
+
+# Function to compose spatially distribute PFT
+def compose_veg_grid(grid, percent_bare=0.4, percent_grass=0.2,
+                     percent_shrub=0.2, percent_tree=0.2):
+    no_cells = grid.number_of_cells
+    veg_grid = 3 * np.ones(grid.number_of_cells, dtype=int)
+    shrub_point = int(percent_bare * no_cells)
+    tree_point = int((percent_bare + percent_shrub) * no_cells)
+    grass_point = int((1 - percent_grass) * no_cells)
+    veg_grid[shrub_point:tree_point] = 1
+    veg_grid[tree_point:grass_point] = 2
+    veg_grid[grass_point:] = 0
+    np.random.shuffle(veg_grid)
+    return veg_grid
+
+
+def initialize(data, grid, grid1, grid2, elevation):
+    """Initialize random plant type field.
+
+    Plant types are defined as the following:
+
+    *  GRASS = 0
+    *  SHRUB = 1
+    *  TREE = 2
+    *  BARE = 3
+    *  SHRUBSEEDLING = 4
+    *  TREESEEDLING = 5
+    """
+    grid['cell']['vegetation__plant_functional_type'] = compose_veg_grid(
+        grid, percent_bare=data['percent_bare_initial'],
+        percent_grass=data['percent_grass_initial'],
+        percent_shrub=data['percent_shrub_initial'],
+        percent_tree=data['percent_tree_initial'])
+    # Assign plant type for representative ecohydrologic simulations
+    grid1.at_cell['vegetation__plant_functional_type'] = np.arange(6)
+    grid1.at_node['topographic__elevation'] = np.full(grid1.number_of_nodes,
+                                                      1700.)
+    grid.at_node['topographic__elevation'] = elevation
+    grid2.at_node['topographic__elevation'] = elevation
+    if data['runon_switch']:
+        (ordered_cells, grid2) = get_ordered_cells_for_soil_moisture(
+            grid2, outlet_id=1449-(2*58)-2)
+        grid.at_node['flow__receiver_node'] = (
+            grid2.at_node['flow__receiver_node'])
+    else:
+        ordered_cells = None
+    precip_dry = PrecipitationDistribution(
+        mean_storm_duration=data['mean_storm_dry'],
+        mean_interstorm_duration=data['mean_interstorm_dry'],
+        mean_storm_depth=data['mean_storm_depth_dry'])
+    precip_wet = PrecipitationDistribution(
+        mean_storm_duration=data['mean_storm_wet'],
+        mean_interstorm_duration=data['mean_interstorm_wet'],
+        mean_storm_depth=data['mean_storm_depth_wet'])
+    radiation = Radiation(grid)
+    rad_pet = Radiation(grid1)
+    pet_tree = PotentialEvapotranspiration(grid1, method=data['PET_method'],
+                                           MeanTmaxF=data['MeanTmaxF_tree'],
+                                           delta_d=data['DeltaD'])
+    pet_shrub = PotentialEvapotranspiration(grid1, method=data['PET_method'],
+                                            MeanTmaxF=data['MeanTmaxF_shrub'],
+                                            delta_d=data['DeltaD'])
+    pet_grass = PotentialEvapotranspiration(grid1, method=data['PET_method'],
+                                            MeanTmaxF=data['MeanTmaxF_grass'],
+                                            delta_d=data['DeltaD'])
+    soil_moisture = SoilMoisture(grid, ordered_cells=ordered_cells, **data)   # Soil Moisture object
+    vegetation = Vegetation(grid, **data)    # Vegetation object
+    vegca = VegCA(grid, **data)      # Cellular automaton object
+
+    # # Initializing inputs for Soil Moisture object
+    grid['cell']['vegetation__live_leaf_area_index'] = (
+        1.6 * np.ones(grid.number_of_cells))
+    grid['cell']['soil_moisture__initial_saturation_fraction'] = (
+        0.59 * np.ones(grid.number_of_cells))
+    # Initializing Soil Moisture
+    return (precip_dry, precip_wet, radiation, rad_pet, pet_tree, pet_shrub,
+            pet_grass, soil_moisture, vegetation, vegca, ordered_cells)
+
+
+def empty_arrays(n, n_years, grid, grid1):
+    precip = np.empty(n)    # Record precipitation
+    inter_storm_dt = np.empty(n)    # Record inter storm duration
+    storm_dt = np.empty(n)    # Record storm duration
+    time_elapsed = np.empty(n)  # To record time elapsed from the start of simulation
+#    CumWaterStress = np.empty(grid.number_of_cells)  # Cum Water Stress
+    veg_type = np.empty([n_years+5, grid.number_of_cells], dtype=int)
+    runon_annual = np.empty([n_years+5, grid.number_of_cells])
+    runoff_annual = np.empty([n_years+5, grid.number_of_cells])
+    daily_pet = np.zeros([365, grid1.number_of_cells])
+    rad_Factor = np.empty([365, grid.number_of_cells])
+    EP30 = np.empty([365, grid1.number_of_cells])
+    # 30 day average PET to determine season
+    pet_threshold = 0  # Initializing daily_pet threshold to ETThresholddown
+    return (precip, inter_storm_dt, storm_dt, time_elapsed, runon_annual,
+            runoff_annual, daily_pet, rad_Factor, EP30,
+            pet_threshold, veg_type)
+
+
+def create_pet_lookup(radiation, pet_tree, pet_shrub, pet_grass, daily_pet,
+                      rad_factor, EP30, rad_pet, grid):
+    for i in range(0, 365):
+        rad_pet.update(float(i)/365.25)
+        pet_tree.update(float(i)/365.25)
+        pet_shrub.update(float(i)/365.25)
+        pet_grass.update(float(i)/365.25)
+        daily_pet[i] = [pet_grass._PET_value, pet_shrub._PET_value,
+                   pet_tree._PET_value, 0., pet_shrub._PET_value,
+                   pet_tree._PET_value]
+        radiation.update(float(i)/365.25)
+        rad_factor[i] = grid['cell']['radiation__ratio_to_flat_surface']
+        if i < 30:
+            if i == 0:
+                EP30[0] = daily_pet[0]
+            else:
+                EP30[i] = np.mean(daily_pet[:i], axis=0)
+        else:
+            EP30[i] = np.mean(daily_pet[i-30:i], axis=0)
+    return (EP30, daily_pet, rad_factor)
+
+def save(sim, inter_storm_dt, storm_dt, precip, veg_type, yrs, walltime,
+         time_elapsed):
+    np.save(sim+'inter_storm_dt', inter_storm_dt)
+    np.save(sim+'storm_dt', storm_dt)
+    np.save(sim+'P', precip)
+    np.save(sim+'veg_type', veg_type)
+#    np.save(sim+'CumWaterStress', CumWaterStress)
+    np.save(sim+'Years', yrs)
+    np.save(sim+'Time_Consumed_minutes', walltime)
+    np.save(sim+'CurrentTime', time_elapsed)
+
+
+def plot(sim, grid, veg_type, yrs, yr_step=10):
+    elevation = grid['node']['topographic__elevation']
+    elev_raster = grid.node_vector_to_raster(elevation)
+    elev_grid = np.zeros([elev_raster.shape[0]-2, elev_raster.shape[1]-2])
+    xx = (grid.dx * (np.arange(elev_grid.shape[1])))
+    yy = (grid.dy * (np.arange(elev_grid.shape[0])))
+    for ii in range(1, int(elev_raster.shape[0]-1)):
+        for jj in range(1, int(elev_raster.shape[1]-1)):
+            elev_grid[ii-1][jj-1] = elev_raster[ii][jj]
+
+    pic = 0
+    years = range(0, yrs)
+    cmap = mpl.colors.ListedColormap(
+                        ['green', 'red', 'black', 'white', 'red', 'black'])
+    bounds = [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
+    norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+    print 'Plotting cellular field of Plant Functional Type'
+    print 'Green - Grass; Red - Shrubs; Black - Trees; White - Bare'
+    # # Plot images to make gif.
+    for year in range(0, yrs, yr_step):
+        filename = 'year_' + "%05d" % year
+        pic += 1
+        plt.figure(pic, figsize=(10, 8))
+        imshow_grid(grid, veg_type[year], values_at='cell', cmap=cmap,
+                    grid_units=('m', 'm'), norm=norm, limits=[0, 5],
+                    allow_colorbar=False)
+        plt.hold(True)
+        clt = plt.contour(xx, yy, elev_grid, colors='b',
+                          figsize=(10, 8), linewidths=3)
+        plt.clabel(clt, inline=1, fmt='%4.0f', fontsize=12)
+        plt.title(filename, weight='bold', fontsize=14)
+        plt.savefig(sim+filename)
+
+    grass_cov = np.empty(yrs)
+    shrub_cov = np.empty(yrs)
+    tree_cov = np.empty(yrs)
+    grid_size = float(veg_type.shape[1])
+    for x in range(0, yrs):
+        grass_cov[x] = (veg_type[x][veg_type[x] == GRASS].size/grid_size) * 100
+        shrub_cov[x] = ((veg_type[x][veg_type[x] == SHRUB].size/grid_size) *
+                        100 + (veg_type[x][veg_type[x] == SHRUBSEEDLING].size /
+                        grid_size) * 100)
+        tree_cov[x] = ((veg_type[x][veg_type[x] == TREE].size/grid_size) *
+                       100 + (veg_type[x][veg_type[x] == TREESEEDLING].size /
+                       grid_size) * 100)
+    pic += 1
+    plt.figure(pic, figsize=(10, 8))
+    plt.plot(years, grass_cov, '-g', label='Grass', linewidth=4)
+    plt.hold(True)
+    plt.plot(years, shrub_cov, '-r', label='Shrub', linewidth=4)
+    plt.hold(True)
+    plt.plot(years, tree_cov, '-k', label='Tree', linewidth=4)
+    plt.ylabel('% Area Covered by Plant Type', weight='bold', fontsize=18)
+    plt.xlabel('Time in years', weight='bold', fontsize=18)
+    plt.xticks(fontsize=12, weight='bold')
+    plt.yticks(fontsize=12, weight='bold')
+    plt.xlim(xmin=0)
+    plt.legend(loc=0, prop={'size': 16, 'weight': 'bold'})
+    plt.savefig(sim+'_percent_cover')
+    # plt.show()
