@@ -15,6 +15,8 @@ from ecohyd_functions_flat import (initialize, empty_arrays,
 grid1 = RasterModelGrid((285, 799), spacing=(5., 5.))
 grid = RasterModelGrid((5, 4), spacing=(5., 5.))
 
+
+results_main_folder = 'E:\pub_wrr_ecohyd\ca_flat'   # Enter the path where you want the results to be written
 sub_fldr_name = 'sim_5m_82_lnger_1'
 data = load_params('sm_calib_82.yaml')
 
@@ -61,11 +63,11 @@ Tg = 0 # Growing season in days
 
 # Saving
 try:
-    os.mkdir('E:\pub_wrr_ecohyd\ca_flat')
+    os.mkdir(results_main_folder)
 except OSError:
     pass
 finally:
-    os.chdir('E:\pub_wrr_ecohyd\ca_flat')
+    os.chdir(results_main_folder)
 
 
 try:

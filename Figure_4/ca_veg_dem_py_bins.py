@@ -27,6 +27,7 @@ sm_grid = RasterModelGrid((83, 10), spacing=(5., 5.))     # Representative grid
 # create a grid for radiation factor: 9 slope_bins X 12 aspect_bins = 108 cells
 rad_grid = RasterModelGrid((14, 11), spacing=(5., 5.))
 
+results_main_folder = 'E:\pub_wrr_ecohyd\ca_dem'   # Enter the path where you want the results to be written
 sub_fldr_name = 'sm_calib_82_lnger_1'
 data = load_params('sm_calib_82.yaml')  # Creates dictionary that holds the inputs
 # sub_fldr_name = sys.argv[1] + '_lnger_1'
@@ -83,11 +84,11 @@ Tg = 0        # Growing season in days
 
 # Saving
 try:
-    os.mkdir('E:\pub_wrr_ecohyd\ca_dem')
+    os.mkdir(results_main_folder)
 except OSError:
     pass
 finally:
-    os.chdir('E:\pub_wrr_ecohyd\ca_dem')
+    os.chdir(results_main_folder)
 
 try:
     os.mkdir('output')
