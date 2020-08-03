@@ -146,9 +146,9 @@ def plot(sim, grid, veg_type, yrs, yr_step=10):
         ['green', 'red', 'black', 'white', 'maroon', 'blue'])
     bounds = [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
     norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
-    print 'Plotting cellular field of Plant Functional Type'
-    print 'Green - Grass; Red - Shrubs; Black - Trees; White - Bare'
-    print 'ShrubSeedling - Maroon; TreeSeedling - Blue'
+    print('Plotting cellular field of Plant Functional Type')
+    print('Green - Grass; Red - Shrubs; Black - Trees; White - Bare')
+    print('ShrubSeedling - Maroon; TreeSeedling - Blue')
 
     # Plot images to make gif.
     for year in range(0, yrs, yr_step):

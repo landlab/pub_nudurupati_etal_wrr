@@ -15,14 +15,14 @@ from ecohyd_functions_flat import (initialize, empty_arrays,
 grid1 = RasterModelGrid((285, 799), spacing=(5., 5.))
 grid = RasterModelGrid((5, 4), spacing=(5., 5.))
 
-sub_fldr_name = 'sim_5m_88_lnger_1'
-data = load_params('sm_calib_88.yaml')
+sub_fldr_name = 'sim_5m_82_lnger_1'
+data = load_params('sm_calib_82.yaml')
 
 (precip_dry, precip_wet, radiation, pet_tree, pet_shrub,
  pet_grass, soil_moisture, vegetation, vegca) = initialize(data, grid, grid1)
 
-n_years = 20000 # Approx number of years for model to run
-yr_step = 200
+n_years = 200 # Approx number of years for model to run
+yr_step = 20
 
 # Calculate approximate number of storms per year
 fraction_wet = (data['doy__end_of_monsoon'] -
@@ -61,11 +61,12 @@ Tg = 0 # Growing season in days
 
 # Saving
 try:
-    os.chdir('E:\Research_UW_Sai_PhD\Jan_2017\ca_flat')
+    os.mkdir('E:\pub_wrr_ecohyd\ca_flat')
 except OSError:
-    os.chdir('/data1/sai_projs/ecohyd_paper_03May18/ca_flat')
-finally:
     pass
+finally:
+    os.chdir('E:\pub_wrr_ecohyd\ca_flat')
+
 
 try:
     os.mkdir('output')
@@ -141,7 +142,7 @@ while yrs < n_years:
         veg_type = grid1.at_cell['vegetation__plant_functional_type']
         veg_cov[yrs, :] = calc_veg_cov(grid1, veg_type)
         if yrs % yr_step == 0:
-            print 'Elapsed time = ', yrs, ' years'
+            print('Elapsed time = ', yrs, ' years')
             np.save('vegtype_'+str(yrs)+'.npy', veg_type)
             np.save('vegetation_cover', veg_cov)
         cum_water_stress = np.choose(veg_type, water_stress)
@@ -155,6 +156,6 @@ while yrs < n_years:
 
 wallclock_stop = time.clock()
 walltime = (wallclock_stop - wallclock_start) / 60. # in minutes
-print 'Time_consumed = ', walltime, ' minutes'
+print('Time_consumed = ', walltime, ' minutes')
 np.save('vegetation_cover', veg_cov)
 plot_veg_cov(veg_cov, yrs=yrs, savename='veg_cov_3sp')

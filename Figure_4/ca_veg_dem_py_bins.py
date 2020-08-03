@@ -27,17 +27,17 @@ sm_grid = RasterModelGrid((83, 10), spacing=(5., 5.))     # Representative grid
 # create a grid for radiation factor: 9 slope_bins X 12 aspect_bins = 108 cells
 rad_grid = RasterModelGrid((14, 11), spacing=(5., 5.))
 
-#sub_fldr_name = 'sm_calib_87_lnger_1'
-#data = load_params('sm_calib_87.yaml')  # Creates dictionary that holds the inputs
-sub_fldr_name = sys.argv[1] + '_lnger_1'
-data = load_params(sys.argv[1]+'.yaml')  # Creates dictionary that holds the inputs
+sub_fldr_name = 'sm_calib_82_lnger_1'
+data = load_params('sm_calib_82.yaml')  # Creates dictionary that holds the inputs
+# sub_fldr_name = sys.argv[1] + '_lnger_1'
+# data = load_params(sys.argv[1]+'.yaml')  # Creates dictionary that holds the inputs
 
 (precip_dry, precip_wet, radiation, pet_tree, pet_shrub, pet_grass,
  soil_moisture, vegetation, vegca) = initialize(data, grid, sm_grid, rad_grid,
                                                 elevation)
 
-n_years = 20000       # Approx number of years for model to run
-yr_step = 200        # Step for printing current time
+n_years = 200       # Approx number of years for model to run
+yr_step = 20        # Step for printing current time
 # Calculate approximate number of storms per year
 fraction_wet = (data['doy__end_of_monsoon']-data['doy__start_of_monsoon'])/365.
 fraction_dry = 1 - fraction_wet
@@ -83,11 +83,11 @@ Tg = 0        # Growing season in days
 
 # Saving
 try:
-    os.chdir('E:\Research_UW_Sai_PhD\Jan_2017\ca_dem_bins')
+    os.mkdir('E:\pub_wrr_ecohyd\ca_dem')
 except OSError:
-    os.chdir('/data1/sai_projs/ecohyd_paper_03May18/ca_dem_bins')
-finally:
     pass
+finally:
+    os.chdir('E:\pub_wrr_ecohyd\ca_dem')
 
 try:
     os.mkdir('output')
@@ -171,7 +171,7 @@ while yrs < n_years:
         lai_veg = np.take(sm_grid.at_cell['vegetation__live_leaf_area_index'],
                           mapper)
         if yrs % yr_step == 0:
-            print 'Elapsed time = ', yrs, ' years'
+            print('Elapsed time = ', yrs, ' years')
             np.save('vegtype_'+str(yrs)+'.npy', veg_type)
             np.save('livelai_'+str(yrs)+'.npy', lai_veg)
             np.save('veg_cover_wtrshd', veg_cov)
@@ -187,7 +187,7 @@ while yrs < n_years:
 
 wallclock_stop = time.clock()
 walltime = (wallclock_stop - wallclock_start)/60.    # in minutes
-print 'Time_consumed = ', walltime, ' minutes'
+print('Time_consumed = ', walltime, ' minutes')
 np.save('veg_cover_wtrshd', veg_cov)
 np.save('veg_cover_aspect', veg_cov_asp)
 plot_veg_cov(veg_cov, yrs=yrs, savename='veg_cov_3sp')
