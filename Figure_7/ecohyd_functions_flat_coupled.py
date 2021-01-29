@@ -1,4 +1,4 @@
-# Jai Sri Sainath!
+
 # Authors: Sai Nudurupati & Erkan Istanbulluoglu, 21May15
 # Edited: 15Jul16 - to conform to Landlab version 1.
 # Updated: 22May17 - for CSDMS 2017
