@@ -1,4 +1,4 @@
-# Jai Sri Sainath!
+
 """
 Created on 15 May 2017 - for CSDMS 2017
 updated on 22 May 2017 - for CSDMS 2017
